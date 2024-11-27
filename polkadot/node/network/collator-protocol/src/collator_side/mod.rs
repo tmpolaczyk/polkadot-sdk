@@ -843,8 +843,8 @@ async fn process_msg<Context>(
 
 	match msg {
 		CollateOn(id) => {
-			state.collating_on = Some(id);
-			state.implicit_view = Some(ImplicitView::new(Some(id)));
+			state.collating_on = id;
+			state.implicit_view = Some(ImplicitView::new(id));
 		},
 		DistributeCollation {
 			candidate_receipt,
@@ -897,6 +897,11 @@ async fn process_msg<Context>(
 			}
 		},
 		NetworkBridgeUpdate(event) => {
+			gum::warn!("COLLATOR_PROTOCOL: NetworkBridgeUpdate with para id {:?}: {:?}", state.collating_on, event);
+
+			if false && state.collating_on.map(|x| u32::from(x)).unwrap_or(0) == 0 {
+                        //gum::warn!("COLLATOR_PROTOCOL: NetworkBridgeUpdate with para id 0: {:?}", event);
+                    } else {
 			// We should count only this shoulder in the histogram, as other shoulders are just
 			// introducing noise
 			let _ = state.metrics.time_process_msg();
@@ -908,6 +913,7 @@ async fn process_msg<Context>(
 					"Failed to handle incoming network message",
 				);
 			}
+                    }
 		},
 		msg @ (ReportCollator(..) | Invalid(..) | Seconded(..)) => {
 			gum::warn!(
@@ -1520,6 +1526,8 @@ async fn run_inner<Context>(
 		pin_mut!(recv_req_v1);
 		pin_mut!(recv_req_v2);
 
+                gum::warn!("COLLATOR_PROTOCOL: loop with para id {:?}", state.collating_on);
+
 		let mut reconnect_timeout = &mut state.reconnect_timeout;
 		select! {
 			_ = reputation_delay => {
@@ -1528,6 +1536,7 @@ async fn run_inner<Context>(
 			},
 			msg = ctx.recv().fuse() => match msg.map_err(FatalError::SubsystemReceive)? {
 				FromOrchestra::Communication { msg } => {
+                                        gum::warn!("COLLATOR_PROTOCOL: FromOrchestra::Communication");  
 					log_error(
 						process_msg(&mut ctx, &mut runtime, &mut state, msg).await,
 						"Failed to process message"
@@ -1543,6 +1552,7 @@ async fn run_inner<Context>(
 			},
 			CollationSendResult { relay_parent, candidate_hash, peer_id, timed_out } =
 				state.active_collation_fetches.select_next_some() => {
+                                gum::warn!("COLLATOR_PROTOCOL: state.active_collation_fetches");  
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {
 					if timed_out {
 						gum::debug!(
@@ -1605,26 +1615,35 @@ async fn run_inner<Context>(
 				}
 			},
 			(candidate_hash, peer_id) = state.advertisement_timeouts.select_next_some() => {
-				// NOTE: it doesn't necessarily mean that a validator gets disconnected,
-				// it only will if there're no other advertisements we want to send.
-				//
-				// No-op if the collation was already fetched or went out of view.
-				for authority_id in state.peer_ids.get(&peer_id).into_iter().flatten() {
-					state
-						.validator_groups_buf
-						.reset_validator_interest(candidate_hash, &authority_id);
-				}
+                                if state.collating_on.map(|x| u32::from(x)).unwrap_or(0) == 0 {
+                                    gum::warn!("COLLATOR_PROTOCOL: state.advertisement_timeouts with para id 0");  
+                                } else {
+                                    // NOTE: it doesn't necessarily mean that a validator gets disconnected,
+                                    // it only will if there're no other advertisements we want to send.
+                                    //
+                                    // No-op if the collation was already fetched or went out of view.
+                                    for authority_id in state.peer_ids.get(&peer_id).into_iter().flatten() {
+                                            state
+                                                    .validator_groups_buf
+                                                    .reset_validator_interest(candidate_hash, &authority_id);
+                                    }
+                                }
 			}
 			_ = reconnect_timeout => {
-				connect_to_validators(&mut ctx, &state.validator_groups_buf).await;
+                                if state.collating_on.map(|x| u32::from(x)).unwrap_or(0) == 0 {
+                                    gum::warn!("COLLATOR_PROTOCOL: reconnect_timeout with para id 0");  
+                                } else {
+                                    connect_to_validators(&mut ctx, &state.validator_groups_buf).await;
 
-				gum::trace!(
-					target: LOG_TARGET,
-					timeout = ?RECONNECT_AFTER_LEAF_TIMEOUT,
-					"Peer-set updated due to a timeout"
-				);
+                                    gum::trace!(
+                                            target: LOG_TARGET,
+                                            timeout = ?RECONNECT_AFTER_LEAF_TIMEOUT,
+                                            "Peer-set updated due to a timeout"
+                                    );
+                                }
 			},
 			in_req = recv_req_v1 => {
+                                gum::warn!("COLLATOR_PROTOCOL: recv_req_v1");  
 				let request = in_req.map(VersionedCollationRequest::from);
 
 				log_error(
@@ -1633,6 +1652,7 @@ async fn run_inner<Context>(
 				)?;
 			}
 			in_req = recv_req_v2 => {
+                                gum::warn!("COLLATOR_PROTOCOL: recv_req_v2");  
 				let request = in_req.map(VersionedCollationRequest::from);
 
 				log_error(

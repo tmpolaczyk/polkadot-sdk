@@ -1453,7 +1453,7 @@ async fn process_msg<Context>(
 		CollateOn(id) => {
 			gum::warn!(
 				target: LOG_TARGET,
-				para_id = %id,
+				para_id = ?id,
 				"CollateOn message is not expected on the validator side of the protocol",
 			);
 		},

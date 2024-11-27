@@ -227,7 +227,7 @@ pub mod relay_chain_driven {
 			.await;
 
 		overseer_handle
-			.send_msg(CollatorProtocolMessage::CollateOn(para_id), "StartCollator")
+			.send_msg(CollatorProtocolMessage::CollateOn(Some(para_id)), "StartCollator")
 			.await;
 
 		stream_rx
@@ -257,7 +257,7 @@ pub async fn initialize_collator_subsystems(
 	}
 
 	overseer_handle
-		.send_msg(CollatorProtocolMessage::CollateOn(para_id), "StartCollator")
+		.send_msg(CollatorProtocolMessage::CollateOn(Some(para_id)), "StartCollator")
 		.await;
 }
 

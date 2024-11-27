@@ -213,7 +213,7 @@ pub enum CollatorProtocolMessage {
 	/// of the previous signal.
 	///
 	/// This should be sent before any `DistributeCollation` message.
-	CollateOn(ParaId),
+	CollateOn(Option<ParaId>),
 	/// Provide a collation to distribute to validators with an optional result sender.
 	DistributeCollation {
 		/// The receipt of the candidate.
